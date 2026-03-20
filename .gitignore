@@ -1,0 +1,43 @@
+# ─── Python ──────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ─── Virtual environments ─────────────
+.venv/
+venv/
+env/
+
+# ─── Environment / Secrets ────────────
+.env
+*.pem
+*.key
+
+# ─── Data / Indexes ───────────────────
+data/faiss_index/
+data/analytical.duckdb
+data/analytical.duckdb.wal
+logs/
+mlruns/
+
+# ─── IDE ─────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ─── OS ──────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Docker ──────────────────────────
+*.tar
+
+# ─── Testing ─────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/

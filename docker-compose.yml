@@ -1,0 +1,189 @@
+version: "3.9"
+
+# ═══════════════════════════════════════════════════════════════
+# Enterprise GenAI Platform — Docker Compose
+# All services communicate on the internal "genai" network.
+# External ports: API=8000, MLflow=5000, Prometheus=9090, Grafana=3000
+# ═══════════════════════════════════════════════════════════════
+
+x-common-env: &common-env
+  ENVIRONMENT: development
+  LOG_LEVEL: INFO
+  STRUCTURED_LOG_FORMAT: "false"
+  REDIS_URL: redis://redis:6379/0
+  DATABASE_URL: postgresql+asyncpg://genai:genai@postgres:5432/genai_db
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  FAISS_INDEX_PATH: /app/data/faiss_index
+  DUCKDB_PATH: /app/data/analytical.duckdb
+
+services:
+
+  # ─── API Gateway ────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.api
+    container_name: genai-api
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *common-env
+      # Set your real key in .env file or environment
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY:-dev-secret-key}
+    volumes:
+      - faiss_data:/app/data/faiss_index
+      - duckdb_data:/app/data
+      - api_logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - genai
+
+  # ─── Redis (Response Cache) ──────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: genai-redis
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - genai
+
+  # ─── PostgreSQL (Structured data + audit logs) ───────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: genai-postgres
+    environment:
+      POSTGRES_DB: genai_db
+      POSTGRES_USER: genai
+      POSTGRES_PASSWORD: genai
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./data/schemas/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genai -d genai_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - genai
+
+  # ─── MLflow (Experiment Tracking) ───────────────────────────
+  mlflow:
+    image: python:3.11-slim
+    container_name: genai-mlflow
+    command: >
+      sh -c "pip install -q mlflow psycopg2-binary &&
+             mlflow server
+             --host 0.0.0.0
+             --port 5000
+             --backend-store-uri postgresql://genai:genai@postgres:5432/genai_db
+             --default-artifact-root /mlruns"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_artifacts:/mlruns
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - genai
+
+  # ─── Nginx (Reverse Proxy, optional in dev) ──────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: genai-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - genai
+    profiles:
+      - production   # Only start in production profile
+
+  # ─── Prometheus + Grafana (Observability stack) ──────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: genai-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    restart: unless-stopped
+    networks:
+      - genai
+    profiles:
+      - observability
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: genai-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - genai
+    profiles:
+      - observability
+
+# ─── Volumes ─────────────────────────────────────────────────
+volumes:
+  faiss_data:
+  duckdb_data:
+  api_logs:
+  redis_data:
+  postgres_data:
+  mlflow_artifacts:
+  prometheus_data:
+  grafana_data:
+
+# ─── Networks ────────────────────────────────────────────────
+networks:
+  genai:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
