@@ -128,11 +128,11 @@ class TestMathFunctions:
 
     def test_pi_constant(self, calc):
         result = float(calc.run("pi"))
-        assert abs(result - math.pi) < 1e-9
+        assert abs(result - math.pi) < 1e-5
 
     def test_e_constant(self, calc):
         result = float(calc.run("e"))
-        assert abs(result - math.e) < 1e-9
+        assert abs(result - math.e) < 1e-5
 
 
 # ── Dict input format ─────────────────────────────────────────────

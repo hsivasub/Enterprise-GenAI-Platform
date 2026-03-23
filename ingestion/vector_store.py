@@ -294,5 +294,9 @@ class FAISSVectorStore:
         return self._index.ntotal if self._index else 0
 
     @property
+    def dimension(self) -> int:
+        return self._dimension
+
+    @property
     def index_path(self) -> str:
         return str(self._index_path)
