@@ -294,7 +294,7 @@ class CalculatorTool(BaseTool):
     ALLOWED_NODES = (
         ast.Expression, ast.BinOp, ast.UnaryOp,
         ast.Num, ast.Constant, ast.Name, ast.Call,
-        ast.Add, ast.Sub, ast.Mul, ast.Div, ast.FloorDiv,
+        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv,
         ast.Mod, ast.Pow, ast.USub, ast.UAdd,
         ast.Load, ast.Attribute,
     )
@@ -339,7 +339,7 @@ class CalculatorTool(BaseTool):
         OPS = {
             ast.Add: operator.add,
             ast.Sub: operator.sub,
-            ast.Mul: operator.mul,
+            ast.Mult: operator.mul,
             ast.Div: operator.truediv,
             ast.FloorDiv: operator.floordiv,
             ast.Mod: operator.mod,
