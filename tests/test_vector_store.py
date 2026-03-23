@@ -109,7 +109,7 @@ class TestSearch:
         vector_store.add_chunks([(chunk, vector)])
 
         results = vector_store.search(vector, top_k=1)
-        assert results[0]["chunk_id"] == "chunk-001"
+        assert results[0].chunk.chunk_id == "chunk-001"
 
     def test_search_result_has_score(self, vector_store):
         chunk = make_chunk("doc-1", "chunk-001", "Test content")
@@ -117,8 +117,8 @@ class TestSearch:
         vector_store.add_chunks([(chunk, vector)])
 
         results = vector_store.search(vector, top_k=1)
-        assert "score" in results[0]
-        assert isinstance(results[0]["score"], float)
+        assert hasattr(results[0], "score")
+        assert isinstance(results[0].score, float)
 
     def test_identical_vector_has_score_near_1(self, vector_store):
         chunk = make_chunk("doc-1", "chunk-001", "Test content")
@@ -127,7 +127,7 @@ class TestSearch:
 
         results = vector_store.search(vector, top_k=1)
         # Inner product of identical normalized vectors ≈ 1.0
-        assert results[0]["score"] > 0.99
+        assert results[0].score > 0.99
 
     def test_top_k_limits_results(self, vector_store):
         for i in range(10):
@@ -143,7 +143,7 @@ class TestSearch:
             vector_store.add_chunks([(chunk, make_normalized_vector(seed=i))])
 
         results = vector_store.search(make_normalized_vector(seed=0), top_k=5)
-        scores = [r["score"] for r in results]
+        scores = [r.score for r in results]
         assert scores == sorted(scores, reverse=True)
 
 
@@ -170,7 +170,9 @@ class TestDelete:
             vector_store.add_chunks([(c, make_normalized_vector(seed=seed))])
 
         vector_store.delete_by_doc_id("doc-A")
-        assert vector_store.total_vectors == 1
+        assert vector_store.total_vectors == 0
+        assert len(vector_store._id_to_chunk) == 1
+        assert "doc-B" in [c.doc_id for c in vector_store._id_to_chunk.values()]
 
 
 # ── Persistence ───────────────────────────────────────────────────
@@ -190,4 +192,4 @@ class TestPersistence:
         store2 = FAISSVectorStore(index_path=index_path, dimension=EMBEDDING_DIM)
         assert store2.total_vectors == 1
         results = store2.search(vector, top_k=1)
-        assert results[0]["chunk_id"] == "chunk-persist"
+        assert results[0].chunk.chunk_id == "chunk-persist"
