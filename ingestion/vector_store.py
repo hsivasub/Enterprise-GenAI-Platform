@@ -111,7 +111,8 @@ class FAISSVectorStore:
         else:
             logger.info(f"Creating new FAISS index (dim={self._dimension})")
             import faiss
-            self._index = faiss.IndexFlatIP(self._dimension)
+            base_index = faiss.IndexFlatIP(self._dimension)
+            self._index = faiss.IndexIDMap(base_index)
 
     def save(self) -> None:
         """Persist index to disk atomically."""
@@ -276,7 +277,8 @@ class FAISSVectorStore:
     def _rebuild_index(self, chunks: Dict[str, DocumentChunk]) -> None:
         import faiss
         with self._lock:
-            self._index = faiss.IndexFlatIP(self._dimension)
+            base_index = faiss.IndexFlatIP(self._dimension)
+            self._index = faiss.IndexIDMap(base_index)
             self._faiss_id_to_chunk_id = {}
             self._id_to_chunk = {}
             self._next_faiss_id = 0

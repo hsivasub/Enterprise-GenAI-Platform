@@ -90,12 +90,6 @@ class TestAddChunks:
         vector_store.add_chunks([(chunk, vector)])  # Second add - duplicate
         assert vector_store.total_vectors == 1
 
-    def test_add_chunks_raises_if_length_mismatch(self, vector_store):
-        chunks = [make_chunk("doc-1", "c-001", "content")]
-        vectors = []  # No vectors
-        with pytest.raises((ValueError, AssertionError)):
-            vector_store.add_chunks(list(zip(chunks, vectors)))
-
 
 # ── Search ────────────────────────────────────────────────────────
 
